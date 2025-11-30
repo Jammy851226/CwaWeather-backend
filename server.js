@@ -15,18 +15,55 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 城市英文代號 → CWA 中文名稱
+const cityMap = {
+  taipei: "臺北市",
+  newtaipei: "新北市",
+  taoyuan: "桃園市",
+  taichung: "臺中市",
+  tainan: "臺南市",
+  kaohsiung: "高雄市",
+  keelung: "基隆市",
+  hsinchu: "新竹市",
+  hsinchuCounty: "新竹縣",
+  miaoli: "苗栗縣",
+  changhua: "彰化縣",
+  nantou: "南投縣",
+  yunlin: "雲林縣",
+  chiayi: "嘉義市",
+  chiayiCounty: "嘉義縣",
+  pingtung: "屏東縣",
+  yilan: "宜蘭縣",
+  hualien: "花蓮縣",
+  taitung: "臺東縣",
+  penghu: "澎湖縣",
+  kinmen: "金門縣",
+  lienchiang: "連江縣",
+};
+
 /**
  * 取得高雄天氣預報
  * CWA 氣象資料開放平臺 API
  * 使用「一般天氣預報-今明 36 小時天氣預報」資料集
  */
-const getKaohsiungWeather = async (req, res) => {
+// 動態路由：支援多縣市
+const getWeatherByCity = async (req, res) => {
   try {
     // 檢查是否有設定 API Key
     if (!CWA_API_KEY) {
       return res.status(500).json({
         error: "伺服器設定錯誤",
         message: "請在 .env 檔案中設定 CWA_API_KEY",
+      });
+    }
+
+    const cityKey = req.params.city.toLowerCase();
+    const locationName = cityMap[cityKey];
+
+    if (!locationName) {
+      return res.status(400).json({
+        error: "不支援的城市",
+        message: `目前不支援 ${req.params.city}`,
       });
     }
 
@@ -37,18 +74,18 @@ const getKaohsiungWeather = async (req, res) => {
       {
         params: {
           Authorization: CWA_API_KEY,
-          locationName: "宜蘭縣",
+          locationName,
         },
       }
     );
 
-    // 取得高雄市的天氣資料
+    // 取得某地區的天氣資料
     const locationData = response.data.records.location[0];
 
     if (!locationData) {
       return res.status(404).json({
         error: "查無資料",
-        message: "無法取得高雄市天氣資料",
+        message: "無法取得該地區天氣資料",
       });
     }
 
@@ -141,8 +178,8 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// 取得高雄天氣預報
-app.get("/api/weather/kaohsiung", getKaohsiungWeather);
+// 動態取得各縣市天氣
+app.get("/api/weather/:city", getWeatherByCity);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
