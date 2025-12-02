@@ -25,7 +25,6 @@ const cityMap = {
   kaohsiung: "高雄市",
   keelung: "基隆市",
   hsinchu: "新竹市",
-  hsinchuCounty: "新竹縣",
   miaoli: "苗栗縣",
   changhua: "彰化縣",
   nantou: "南投縣",
@@ -70,7 +69,7 @@ const getWeatherByCity = async (req, res) => {
     // 呼叫 CWA API - 一般天氣預報（36小時）
     // API 文件: https://opendata.cwa.gov.tw/dist/opendata-swagger.html
     const response = await axios.get(
-      `${CWA_API_BASE_URL}/v1/rest/datastore/F-C0032-001`,
+      `${CWA_API_BASE_URL}/v1/rest/datastore/F-D0047-091`,
       {
         params: {
           Authorization: CWA_API_KEY,
@@ -80,7 +79,7 @@ const getWeatherByCity = async (req, res) => {
     );
 
     // 取得某地區的天氣資料
-    const locationData = response.data.records.location[0];
+    const locationData = response.data.records.Locations[0].Location.find((loc) => loc.LocationName === locationName);
 
     if (!locationData) {
       return res.status(404).json({
@@ -110,30 +109,35 @@ const getWeatherByCity = async (req, res) => {
         maxTemp: "",
         comfort: "",
         windSpeed: "",
+        humidity: "",
+        UV: "",
       };
 
       weatherElements.forEach((element) => {
-        const value = element.time[i].parameter;
-        switch (element.elementName) {
-          case "Wx":
-            forecast.weather = value.parameterName;
-            break;
-          case "PoP":
-            forecast.rain = value.parameterName + "%";
-            break;
-          case "MinT":
-            forecast.minTemp = value.parameterName + "°C";
-            break;
-          case "MaxT":
-            forecast.maxTemp = value.parameterName + "°C";
-            break;
-          case "CI":
-            forecast.comfort = value.parameterName;
-            break;
-          case "WS":
-            forecast.windSpeed = value.parameterName;
-            break;
-        }
+      const value = element.Time[i].ElementValue[0];
+      switch (element.ElementName) {
+      case "紫外線指數":
+        forecast.UV = value.UVIndex;
+        break;
+      case "最高溫度":
+        forecast.maxTemp = value.MaxTemperature + "°C";
+        break;
+      case "最低溫度":
+        forecast.minTemp = value.MinTemperature + "°C";
+        break;
+      case "相對濕度":
+        forecast.humidity = value.RelativeHumidity + "%";
+        break;
+      case "降雨機率":
+        forecast.rain = value.ProbabilityOfPrecipitation + "%";
+        break;
+      case "風速":
+        forecast.windSpeed = value.WindSpeed;
+        break;
+      case "天氣現象":
+        forecast.weather = value.WeatherDescription;
+        break;
+      }
       });
 
       weatherData.forecasts.push(forecast);
