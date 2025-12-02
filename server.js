@@ -80,6 +80,7 @@ const getWeatherByCity = async (req, res) => {
 
     // 取得某地區的天氣資料
     const locationData = response.data.records.Locations[0].Location.find((loc) => loc.LocationName === locationName);
+    //console.log(locationData);
 
     if (!locationData) {
       return res.status(404).json({
@@ -90,19 +91,19 @@ const getWeatherByCity = async (req, res) => {
 
     // 整理天氣資料
     const weatherData = {
-      city: locationData.locationName,
-      updateTime: response.data.records.datasetDescription,
+      city: locationData.LocationName,
+      //updateTime: response.data.records.DatasetDescription,
       forecasts: [],
     };
 
     // 解析天氣要素
-    const weatherElements = locationData.weatherElement;
-    const timeCount = weatherElements[0].time.length;
+    const weatherElements = locationData.WeatherElement;
+    const timeCount = Math.min(weatherElements[0].Time.length, 7);
 
     for (let i = 0; i < timeCount; i++) {
       const forecast = {
-        startTime: weatherElements[0].time[i].startTime,
-        endTime: weatherElements[0].time[i].endTime,
+        startTime: weatherElements[0].Time[i].StartTime,
+        endTime: weatherElements[0].Time[i].EndTime,
         weather: "",
         rain: "",
         minTemp: "",
@@ -114,10 +115,14 @@ const getWeatherByCity = async (req, res) => {
       };
 
       weatherElements.forEach((element) => {
-      const value = element.Time[i].ElementValue[0];
+      const timeData = element.Time[i];
+      if (!timeData) return;
+      if (!timeData.ElementValue || timeData.ElementValue.length === 0) return; // 沒有值就跳過
+      
+      const value = timeData.ElementValue[0];
       switch (element.ElementName) {
       case "紫外線指數":
-        forecast.UV = value.UVIndex;
+        forecast.UV = value.UVExposureLevel;
         break;
       case "最高溫度":
         forecast.maxTemp = value.MaxTemperature + "°C";
@@ -125,17 +130,20 @@ const getWeatherByCity = async (req, res) => {
       case "最低溫度":
         forecast.minTemp = value.MinTemperature + "°C";
         break;
-      case "相對濕度":
+      case "平均相對濕度":
         forecast.humidity = value.RelativeHumidity + "%";
         break;
-      case "降雨機率":
+      case "12小時降雨機率":
         forecast.rain = value.ProbabilityOfPrecipitation + "%";
         break;
       case "風速":
         forecast.windSpeed = value.WindSpeed;
         break;
       case "天氣現象":
-        forecast.weather = value.WeatherDescription;
+        forecast.weather = value.Weather;
+        break;
+      case "最大舒適度指數":
+        forecast.comfort = value.MaxComfortIndexDescription;
         break;
       }
       });
