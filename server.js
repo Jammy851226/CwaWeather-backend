@@ -188,14 +188,23 @@ const getWeatherByIP = async (req, res) => {
       });
     }
 
-    const url = `${IPINFO_TOKEN_URL}${IPINFO_TOKEN}`;
+    const userIP = req.headers["x-forwarded-for"]?.split(",")[0] || req.connection.remoteAddress;
+
+    // 判斷是否是本機或無效 IP
+    let url;
+    if (!userIP || userIP.includes("127.0.0.1") || userIP.includes("::1")) {
+      // fallback：讓 IPinfo 自動判斷呼叫來源 IP
+      url = `${IPINFO_TOKEN_URL}${IPINFO_TOKEN}`;
+    } else {
+      // 正常情況：查指定的使用者 IP
+      url = `https://ipinfo.io/${userIP}?token=${IPINFO_TOKEN}`;
+    }
     console.log("呼叫的 URL:", url);
 
-    const ipResponse = await axios.get(`${IPINFO_TOKEN_URL}${IPINFO_TOKEN}`);
+    const ipResponse = await axios.get(url);
     console.log("IP Response status:", ipResponse.status);
     console.log("IP Data:", ipResponse.data);
     const ipData = ipResponse.data;
-    console.log(ipData);
     const cityKey = ipData.city.toLowerCase(); // 例如 "hsinchu"
 
     const locationName = cityMap[cityKey];
