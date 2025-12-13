@@ -42,6 +42,31 @@ const cityMap = {
   lienchiang: "連江縣",
 };
 
+// 反查 Map：中文名稱 → 英文代號
+const reverseCityMap = {
+  "臺北市": "taipei",
+  "新北市": "newtaipei",
+  "桃園市": "taoyuan",
+  "臺中市": "taichung",
+  "臺南市": "tainan",
+  "高雄市": "kaohsiung",
+  "基隆市": "keelung",
+  "新竹市": "hsinchu",
+  "苗栗縣": "miaoli",
+  "彰化縣": "changhua",
+  "南投縣": "nantou",
+  "雲林縣": "yunlin",
+  "嘉義市": "chiayi",
+  "嘉義縣": "chiayiCounty",
+  "屏東縣": "pingtung",
+  "宜蘭縣": "yilan",
+  "花蓮縣": "hualien",
+  "臺東縣": "taitung",
+  "澎湖縣": "penghu",
+  "金門縣": "kinmen",
+  "連江縣": "lienchiang",
+};
+
 /**
  * 取得高雄天氣預報
  * CWA 氣象資料開放平臺 API
@@ -177,6 +202,80 @@ const getWeatherByCity = async (req, res) => {
   }
 };
 
+// 依經緯度反查所在縣市（使用 OpenStreetMap Nominatim）
+const reverseGeocode = async (req, res) => {
+  try {
+    const { lat, lng } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        error: "參數錯誤",
+        message: "請提供 lat 和 lng，例如 /api/reverse-geocode?lat=...&lng=...",
+      });
+    }
+
+    const response = await axios.get(
+      "https://nominatim.openstreetmap.org/reverse",
+      {
+        params: {
+          format: "jsonv2",
+          lat,
+          lon: lng,
+          "accept-language": "zh-TW", // 要中文地址
+          addressdetails: 1,
+        },
+      }
+    );
+
+    console.log(response);
+
+    const data = response.data;
+    const address = data.address || {};
+
+    console.log("[reverseGeocode] Nominatim 回傳地址:", address);
+
+    // 優先順序：city > county > state
+    const cityName =
+      address.city ||
+      address.county ||
+      address.town ||
+      address.city_district ||
+      address.state ||
+      "";
+
+    if (!cityName) {
+      return res.status(404).json({
+        success: false,
+        error: "查無城市名稱",
+        message: "無法從座標取得城市資訊",
+        raw: data,
+      });
+    }
+
+    // 直接呼叫既有邏輯
+    req.params.city = reverseCityMap[cityName];
+    return getWeatherByCity(req, res);
+
+  } catch (error) {
+    console.error("Reverse geocode 失敗:", error.message);
+
+    if (error.response) {
+      return res.status(error.response.status).json({
+        success: false,
+        error: "ReverseGeocode API 錯誤",
+        message: error.response.data?.error || "無法取得縣市資訊",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: "伺服器錯誤",
+      message: "無法取得縣市資訊，請稍後再試",
+    });
+  }
+};
+
 // ✅ 新增功能：依使用者 IP 自動判斷城市
 const getWeatherByIP = async (req, res) => {
   try {
@@ -232,7 +331,7 @@ app.get("/", (req, res) => {
     endpoints: {
       kaohsiung: "/api/weather/kaohsiung",
       health: "/api/health",
-      ip: "/api/weather/ip",
+      ip: "/api/reverse-geocode",
     },
   });
 });
@@ -242,7 +341,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // 依使用者 IP 自動判斷城市
-app.get("/api/weather/ip", getWeatherByIP);
+app.get("/api/reverse-geocode", reverseGeocode);
 // 動態取得各縣市天氣
 app.get("/api/weather/:city", getWeatherByCity);
 
