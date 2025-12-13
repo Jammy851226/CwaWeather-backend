@@ -9,6 +9,8 @@ const PORT = process.env.PORT || 3000;
 // CWA API 設定
 const CWA_API_BASE_URL = "https://opendata.cwa.gov.tw/api";
 const CWA_API_KEY = process.env.CWA_API_KEY;
+const IPINFO_TOKEN_URL = "https://ipinfo.io/json?token=";
+const IPINFO_TOKEN =process.env.IPINFO_TOKEN;
 
 // Middleware
 app.use(cors());
@@ -175,6 +177,45 @@ const getWeatherByCity = async (req, res) => {
   }
 };
 
+// ✅ 新增功能：依使用者 IP 自動判斷城市
+const getWeatherByIP = async (req, res) => {
+  try {
+    // 檢查是否有設定 IPINFO_TOKEN
+    if (!IPINFO_TOKEN) {
+      return res.status(500).json({
+        error: "伺服器設定錯誤",
+        message: "請在 .env 檔案中設定 IPINFO_TOKEN",
+      });
+    }
+
+    const url = `${IPINFO_TOKEN_URL}${IPINFO_TOKEN}`;
+    console.log("呼叫的 URL:", url);
+
+    const ipResponse = await axios.get(`${IPINFO_TOKEN_URL}${IPINFO_TOKEN}`);
+    console.log("IP Response status:", ipResponse.status);
+    console.log("IP Data:", ipResponse.data);
+    const ipData = ipResponse.data;
+    console.log(ipData);
+    const cityKey = ipData.city.toLowerCase(); // 例如 "hsinchu"
+
+    const locationName = cityMap[cityKey];
+    if (!locationName) {
+      return res.status(400).json({
+        error: "不支援的城市",
+        message: `目前不支援 ${locationName}`,
+      });
+    }
+
+    // 直接呼叫既有邏輯
+    req.params.city = cityKey;
+    return getWeatherByCity(req, res);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "伺服器錯誤", message: err.message });
+  }
+};
+
 // Routes
 app.get("/", (req, res) => {
   res.json({
@@ -182,6 +223,7 @@ app.get("/", (req, res) => {
     endpoints: {
       kaohsiung: "/api/weather/kaohsiung",
       health: "/api/health",
+      ip: "/api/weather/ip",
     },
   });
 });
@@ -190,6 +232,8 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
+// 依使用者 IP 自動判斷城市
+app.get("/api/weather/ip", getWeatherByIP);
 // 動態取得各縣市天氣
 app.get("/api/weather/:city", getWeatherByCity);
 
