@@ -225,6 +225,10 @@ const reverseGeocode = async (req, res) => {
           "accept-language": "zh-TW", // 要中文地址
           addressdetails: 1,
         },
+        headers: {
+          // Nominatim 要求必須有 User-Agent，否則可能回 403
+          "User-Agent": "weather-anycity-app/1.0 (xxx)"
+        }
       }
     );
 
